@@ -11,9 +11,10 @@ async function* getEntities(
 ) {
   let nextHref = ms.buildUrl(`entity/${entityType}`, {
     filter: {
+      isDeleted: ['true', 'false'],
       moment: {
         $gte: dateFrom,
-        $lt: dateTo
+        $lte: dateTo
       }
     }
   })
