@@ -15,7 +15,7 @@
     "build:stack": "npm run cdk:synth",
     "build": "npm run build:app && npm run build:layer && npm run build:stack",
     "test:app": "npm run build:app && NODE_OPTIONS=--enable-source-maps node -r dotenv/config ./build/test",
-    "test": "npm run build && NODE_OPTIONS=--enable-source-maps node ./build/test",
+    "test": "npm run build && NODE_OPTIONS=--enable-source-maps node -r dotenv/config ./build/test",
     "release:stage": "npm run test:app && npm run build:stack && git push origin stage",
     "cdk:synth": "npx cdk synth",
     "deploy": "npx cdk deploy --all --profile $PROFILE",
