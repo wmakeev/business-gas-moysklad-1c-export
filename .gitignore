@@ -1,0 +1,26 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# npm
+node_modules
+
+# env
+.env*
+!.env.example
+
+# temp
+/__temp
+
+# build
+/build
+
+# npm
+.npmrc
+
+# build
+/layer
+
+#cdk
+/cdk.out
