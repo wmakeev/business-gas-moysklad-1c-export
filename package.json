@@ -1,7 +1,7 @@
 {
   "name": "moysklad-1c-export-stack",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Сервис выгрузки дополнительной информации из МойСклад для файла импорта в 1С",
   "scripts": {
     "env:example": "npx sync-dotenv@2.6.2",
