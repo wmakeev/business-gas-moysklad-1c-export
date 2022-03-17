@@ -85,15 +85,23 @@ export const exportDataHandler: APIGatewayProxyHandler = async event => {
 
     result = await getDocumentsInfo(auth, dateFrom, dateTo)
     statusCode = OK_STATUS
-  } catch (err) {
+  } catch (err: any) {
     console.log(err)
+
+    if (err.message.includes('Ошибка аутентификации')) {
+      statusCode = UNAUTHORIZED_STATUS
+    }
+
     description = err instanceof Error ? err.message : 'Unknown error'
   }
 
   const response: APIGatewayProxyResult = {
     statusCode: statusCode ?? INTERNAL_ERROR_STATUS,
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...(statusCode === UNAUTHORIZED_STATUS
+        ? { 'WWW-Authenticate': 'Basic realm="moysklad-1c-export"' }
+        : {})
     },
     body: JSON.stringify(
       {
