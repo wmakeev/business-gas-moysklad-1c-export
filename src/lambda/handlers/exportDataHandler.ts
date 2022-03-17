@@ -98,10 +98,7 @@ export const exportDataHandler: APIGatewayProxyHandler = async event => {
   const response: APIGatewayProxyResult = {
     statusCode: statusCode ?? INTERNAL_ERROR_STATUS,
     headers: {
-      'Content-Type': 'application/json',
-      ...(statusCode === UNAUTHORIZED_STATUS
-        ? { 'WWW-Authenticate': 'Basic realm="moysklad-1c-export"' }
-        : {})
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(
       {
