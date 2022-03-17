@@ -11,13 +11,16 @@ const getAuthHeader = () =>
 
 test('exportDataHandler', async t => {
   const event = {
+    requestContext: {
+      httpMethod: 'GET'
+    },
     headers: {
       Authorization: getAuthHeader()
     },
-    body: JSON.stringify({
-      dateFrom: new Date(2022, 2, 17),
-      dateTo: new Date()
-    })
+    queryStringParameters: {
+      dateFrom: new Date(2022, 2, 17).toJSON(),
+      dateTo: new Date().toJSON()
+    }
   }
 
   // @ts-expect-error skip lambda params
@@ -33,9 +36,13 @@ test('exportDataHandler', async t => {
 
 test('exportDataHandler (fail) #1', async t => {
   const event = {
-    body: JSON.stringify({
-      dateFrom: new Date(2022, 2, 15)
-    })
+    requestContext: {
+      httpMethod: 'GET'
+    },
+    queryStringParameters: {
+      dateFrom: new Date(2022, 2, 17).toJSON(),
+      dateTo: new Date().toJSON()
+    }
   }
 
   // @ts-expect-error skip lambda params
@@ -51,21 +58,27 @@ test('exportDataHandler (fail) #1', async t => {
 
 test('exportDataHandler (fail) #2', async t => {
   const event = {
+    requestContext: {
+      httpMethod: 'GET'
+    },
     headers: {
       Authorization: getAuthHeader()
     },
-    body: JSON.stringify({
-      dateFrom: new Date(2022, 2, 15)
-    })
+    queryStringParameters: {
+      dateFrom: new Date(2022, 2, 17).toJSON()
+    }
   }
 
   // @ts-expect-error skip lambda params
   const result = await exportDataHandler(event)
 
-  t.equal(result!.statusCode, 500)
+  t.equal(result!.statusCode, 400)
 
   const body = JSON.parse(result!.body)
 
   t.notOk(body.ok)
-  t.equal(body.description, '["dateTo"] undefined is not a string')
+  t.equal(
+    body.description,
+    'Некорректные параметры запроса - ["dateTo"] undefined is not a string'
+  )
 })

@@ -17,7 +17,7 @@ const INTERNAL_ERROR_STATUS = 500
 const BAD_REQUEST_STATUS = 400
 const UNAUTHORIZED_STATUS = 401
 
-const ExportDataParamsDTO = $mol_data_record({
+const ExportDataParams = $mol_data_record({
   dateFrom: $mol_data_pipe($mol_data_string, $mol_time_moment),
   dateTo: $mol_data_pipe($mol_data_string, $mol_time_moment)
 })
@@ -59,6 +59,11 @@ export const exportDataHandler: APIGatewayProxyHandler = async event => {
   let description: string | undefined
 
   try {
+    if (event.requestContext.httpMethod !== 'GET') {
+      statusCode = BAD_REQUEST_STATUS
+      throw new Error('Ожидался GET запрос')
+    }
+
     const [auth, authErr] = tryCall(() => checkAuth(event))
 
     if (authErr) {
@@ -66,19 +71,14 @@ export const exportDataHandler: APIGatewayProxyHandler = async event => {
       throw new Error(authErr.message)
     }
 
-    if (!event?.body) {
+    const [params, queryErr] = tryCall(() =>
+      ExportDataParams(event.queryStringParameters)
+    )
+
+    if (queryErr) {
       statusCode = BAD_REQUEST_STATUS
-      throw new Error('Тело запроса пусто')
+      throw new Error(`Некорректные параметры запроса - ${queryErr.message}`)
     }
-
-    const [eventBody, parseErr] = tryCall(() => JSON.parse(event.body!))
-
-    if (parseErr) {
-      statusCode = BAD_REQUEST_STATUS
-      throw new Error('Тело запроса не соответствует формату JSON')
-    }
-
-    const params = ExportDataParamsDTO(eventBody)
 
     const dateFrom = params.dateFrom.native
     const dateTo = params.dateTo.native
@@ -95,11 +95,15 @@ export const exportDataHandler: APIGatewayProxyHandler = async event => {
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      ok: statusCode === OK_STATUS,
-      result,
-      description
-    })
+    body: JSON.stringify(
+      {
+        ok: statusCode === OK_STATUS,
+        result,
+        description
+      },
+      null,
+      2
+    )
   }
 
   return response
