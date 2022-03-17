@@ -31,7 +31,7 @@ test('exportDataHandler', async t => {
   t.ok(body.result instanceof Array)
 })
 
-test.only('exportDataHandler (fail) #1', async t => {
+test('exportDataHandler (fail) #1', async t => {
   const event = {
     body: JSON.stringify({
       dateFrom: new Date(2022, 2, 15)
