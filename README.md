@@ -1,3 +1,3 @@
-# %PROJECT_NAME%
+# moysklad-1c-export-stack
 
-> %PROJECT_DESCRIPTION%
+> Сервис выгрузки дополнительной информации из МойСклад для файла импорта в 1С
