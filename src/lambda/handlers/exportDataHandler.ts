@@ -3,11 +3,12 @@ import type {
   APIGatewayProxyHandler,
   APIGatewayProxyResult
 } from 'aws-lambda'
-import { getDocumentsInfo } from '../..'
+import { EntityTypes, getDocumentsInfo } from '../..'
 import {
   $mol_data_pipe,
   $mol_data_record,
-  $mol_data_string
+  $mol_data_string,
+  $mol_data_optional
 } from 'mol_data_all'
 import { $mol_time_moment } from 'mol_time_all'
 import { tryCall } from '../../tools'
@@ -19,7 +20,11 @@ const UNAUTHORIZED_STATUS = 401
 
 const ExportDataParams = $mol_data_record({
   dateFrom: $mol_data_pipe($mol_data_string, $mol_time_moment),
-  dateTo: $mol_data_pipe($mol_data_string, $mol_time_moment)
+  dateTo: $mol_data_pipe($mol_data_string, $mol_time_moment),
+  continueFromEntity: $mol_data_optional($mol_data_string),
+  continueFromDate: $mol_data_optional(
+    $mol_data_pipe($mol_data_string, $mol_time_moment)
+  )
 })
 
 const checkAuth = (event: APIGatewayProxyEvent) => {
@@ -53,7 +58,7 @@ const checkAuth = (event: APIGatewayProxyEvent) => {
   return { login, password }
 }
 
-export const exportDataHandler: APIGatewayProxyHandler = async event => {
+export const exportDataHandler: APIGatewayProxyHandler = async (event, ctx) => {
   let statusCode: number | undefined
   let result: unknown | undefined
   let description: string | undefined
@@ -82,8 +87,33 @@ export const exportDataHandler: APIGatewayProxyHandler = async event => {
 
     const dateFrom = params.dateFrom.native
     const dateTo = params.dateTo.native
+    const continueFromEntity = params.continueFromEntity as EntityTypes
+    const continueFromDate = params.continueFromDate?.native
 
-    result = await getDocumentsInfo(auth, dateFrom, dateTo)
+    const { items, abortedOnDate, abortedOnEntity } = await getDocumentsInfo({
+      auth,
+      dateFrom,
+      dateTo,
+      getRemainingTimeInMillis: () => ctx.getRemainingTimeInMillis(),
+      lastAbortedOnEntity: continueFromEntity,
+      lastAbortedOnDate: continueFromDate
+    })
+
+    let nextQueryString
+
+    if (abortedOnEntity) {
+      const urlParams = new URLSearchParams({
+        dateFrom: dateFrom.toJSON(),
+        dateTo: dateTo.toJSON(),
+        continueFromEntity: abortedOnEntity,
+        continueFromDate: abortedOnDate?.toJSON() ?? undefined
+      })
+
+      nextQueryString = urlParams.toString()
+    }
+
+    result = { items, nextQueryString }
+
     statusCode = OK_STATUS
   } catch (err: any) {
     console.log(err)

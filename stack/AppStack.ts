@@ -18,7 +18,7 @@ export class AppStack extends cdk.Stack {
       code: lambda.Code.fromAsset('./build/src'),
       handler: 'lambda.exportDataHandler',
       memorySize: 128,
-      timeout: cdk.Duration.seconds(35),
+      timeout: cdk.Duration.seconds(27),
       environment: {
         NODE_OPTIONS: '--enable-source-maps'
       },

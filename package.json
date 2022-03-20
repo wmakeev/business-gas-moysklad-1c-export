@@ -42,7 +42,6 @@
   "license": "MIT",
   "devDependencies": {
     "@types/aws-lambda": "^8.10.93",
-    "@types/highland": "^2.12.14",
     "@types/node": "^14.18.12",
     "@types/node-fetch": "^2.6.1",
     "@types/tape": "^4.13.2",
@@ -65,11 +64,11 @@
   "dependencies": {
     "@wmakeev/highland-tools": "^1.6.0",
     "envalid": "^7.3.0",
-    "highland": "^2.13.5",
     "mol_data_all": "^1.1.269",
     "mol_time_all": "^1.1.140",
     "moysklad": "^0.10.0",
     "moysklad-fetch-planner": "^0.0.3",
+    "node-abort-controller": "^3.0.1",
     "node-fetch": "^2.6.7"
   }
 }

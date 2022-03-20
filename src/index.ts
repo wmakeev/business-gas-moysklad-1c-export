@@ -1,32 +1,82 @@
 import { getInstance } from './moysklad/instance'
-import { fromAsyncGenerator } from '@wmakeev/highland-tools'
 import { Instance, parseTimeString } from 'moysklad'
-import _H from 'highland'
+import { AbortController } from 'node-abort-controller'
 
 const DEMAND_TAX_SYSTEM_ATTR_ID = '83a2644f-50e2-11eb-0a80-05ec0025b107'
 
+const ENTITY_TYPES = [
+  'paymentin',
+  'paymentout',
+  'retaildemand',
+  'demand'
+] as const
+
+export type EntityTypes = typeof ENTITY_TYPES[number]
+
+/**
+ * Время до конца таймаута, за которое нужно прервать текущий запрос и вернуть
+ * результат.
+ *
+ */
+const REMAINING_TIME_DEADLINE = 2000
+
 async function* getEntities(
   ms: Instance,
-  entityType: string,
   dateFrom: Date,
-  dateTo: Date
+  dateTo: Date,
+  getRemainingTimeInMillis: () => number,
+  lastAbortedEntity?: EntityTypes,
+  lastAbortedOnDate?: Date
 ) {
-  let nextHref = ms.buildUrl(`entity/${entityType}`, {
-    filter: {
-      isDeleted: ['true', 'false'],
-      moment: {
-        $gte: dateFrom,
-        $lte: dateTo
+  const lastAbortedEntityIndex = lastAbortedEntity
+    ? ENTITY_TYPES.indexOf(lastAbortedEntity)
+    : 0
+
+  for (
+    let entityIndex = lastAbortedEntityIndex;
+    entityIndex < ENTITY_TYPES.length;
+    entityIndex++
+  ) {
+    const entityType = ENTITY_TYPES[entityIndex]!
+
+    let nextHref = ms.buildUrl(`entity/${entityType}`, {
+      filter: {
+        isDeleted: ['true', 'false'],
+        moment: {
+          ...(lastAbortedEntity === entityType && lastAbortedOnDate
+            ? { $gt: lastAbortedOnDate }
+            : { $gte: dateFrom }),
+          $lte: dateTo
+        }
+      },
+      order: 'moment,asc',
+      limit: 250
+    })
+
+    while (nextHref) {
+      const remainingTime = getRemainingTimeInMillis()
+
+      const timeToDeadline = remainingTime - REMAINING_TIME_DEADLINE
+
+      const controller = new AbortController()
+
+      const timeout = setTimeout(() => {
+        controller.abort()
+      }, timeToDeadline)
+
+      let coll
+      try {
+        coll = await ms.GET(nextHref, null, {
+          signal: controller.signal
+        })
+      } finally {
+        clearTimeout(timeout)
       }
+
+      for (const it of coll.rows) yield it as { meta: { type: EntityTypes } }
+
+      nextHref = coll.meta.nextHref
     }
-  })
-
-  while (nextHref) {
-    const coll = await ms.GET(nextHref)
-
-    for (const it of coll.rows) yield it
-
-    nextHref = coll.meta.nextHref
   }
 }
 
@@ -47,11 +97,25 @@ const taxSystemNames: Record<string, string> = {
   PATENT_BASED: 'Патент'
 }
 
-export async function getDocumentsInfo(
-  auth: { login: string; password: string },
-  dateFrom: Date,
+export interface GetDocumentsInfoParams {
+  auth: { login: string; password: string }
+  dateFrom: Date
   dateTo: Date
-) {
+  getRemainingTimeInMillis: () => number
+  lastAbortedOnEntity?: EntityTypes
+  lastAbortedOnDate?: Date
+}
+
+export async function getDocumentsInfo(params: GetDocumentsInfoParams) {
+  const {
+    auth,
+    dateFrom,
+    dateTo,
+    getRemainingTimeInMillis,
+    lastAbortedOnEntity,
+    lastAbortedOnDate
+  } = params
+
   const ms = getInstance(auth)
 
   const [expenseItems, retailStores] = await Promise.all([
@@ -65,62 +129,87 @@ export async function getDocumentsInfo(
   const getRetailStore = (href: string) =>
     retailStores.find((it: any) => it.meta.href === href)
 
-  const paymentIn$ = fromAsyncGenerator(() =>
-    getEntities(ms, 'paymentin', dateFrom, dateTo)
-  ).map(entity => {
-    return {
-      ...getCommonFields(entity),
-      incomingNumber: entity.incomingNumber ?? null,
-      incomingDate: entity.incomingDate
-        ? parseTimeString(entity.incomingDate)
-        : null
+  const mapByType: Record<EntityTypes, (entity: any) => any> = {
+    paymentin: entity => {
+      return {
+        ...getCommonFields(entity),
+        incomingNumber: entity.incomingNumber ?? null,
+        incomingDate: entity.incomingDate
+          ? parseTimeString(entity.incomingDate)
+          : null
+      }
+    },
+
+    paymentout: entity => {
+      const expenseType =
+        getExpenseItem(entity.expenseItem?.meta.href)?.name ?? null
+
+      return {
+        ...getCommonFields(entity),
+        expenseType
+      }
+    },
+
+    retaildemand: entity => {
+      const retailStore = getRetailStore(entity.retailStore.meta.href)
+
+      const taxSystem = taxSystemNames[retailStore.defaultTaxSystem] ?? null
+
+      return {
+        ...getCommonFields(entity),
+        taxSystem
+      }
+    },
+
+    demand: entity => {
+      const taxSystem =
+        entity.attributes?.find(
+          (attr: any) => attr.id === DEMAND_TAX_SYSTEM_ATTR_ID
+        )?.value.name ?? null
+
+      return {
+        ...getCommonFields(entity),
+        taxSystem
+      }
     }
-  })
+  }
 
-  const paymentOut$ = fromAsyncGenerator(() =>
-    getEntities(ms, 'paymentout', dateFrom, dateTo)
-  ).map(entity => {
-    const expenseType =
-      getExpenseItem(entity.expenseItem?.meta.href)?.name ?? null
+  const gen = getEntities(
+    ms,
+    dateFrom,
+    dateTo,
+    getRemainingTimeInMillis,
+    lastAbortedOnEntity,
+    lastAbortedOnDate
+  )
 
-    return {
-      ...getCommonFields(entity),
-      expenseType
+  const items = []
+
+  try {
+    for await (const entity of gen) {
+      const entityType = entity.meta.type
+
+      const item = mapByType[entityType](entity)
+
+      items.push(item)
     }
-  })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.log('Request was aborted')
 
-  const retailDemand$ = fromAsyncGenerator(() =>
-    getEntities(ms, 'retaildemand', dateFrom, dateTo)
-  ).map(entity => {
-    const retailStore = getRetailStore(entity.retailStore.meta.href)
+      if (items.length === 0) {
+        throw new Error('Достигнут таймаут при пустом результате')
+      }
 
-    const taxSystem = taxSystemNames[retailStore.defaultTaxSystem] ?? null
-
-    return {
-      ...getCommonFields(entity),
-      taxSystem
+      return {
+        abortedOnEntity: items[items.length - 1]?.type,
+        abortedOnDate: items[items.length - 1]?.moment,
+        items
+      }
     }
-  })
 
-  const demand$ = fromAsyncGenerator(() =>
-    getEntities(ms, 'demand', dateFrom, dateTo)
-  ).map(entity => {
-    const taxSystem =
-      entity.attributes?.find(
-        (attr: any) => attr.id === DEMAND_TAX_SYSTEM_ATTR_ID
-      )?.value.name ?? null
+    throw err
+  }
 
-    return {
-      ...getCommonFields(entity),
-      taxSystem
-    }
-  })
-
-  // @ts-expect-error merge
-  const result = await _H([paymentIn$, paymentOut$, retailDemand$, demand$])
-    .merge()
-    .collect()
-    .toPromise(Promise)
-
-  return result
+  return { items }
 }

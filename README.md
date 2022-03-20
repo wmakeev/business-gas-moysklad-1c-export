@@ -11,7 +11,7 @@
 
 Для вызова сервиса нужно передать GET запрос с параметрами:
 
-`https://{endpoint}/?dateFrom=2022-03-01T00%3A00%3A00.000Z&dateTo=2022-03-17T11%3A04%3A40.930Z`
+`https://{endpoint}?dateFrom=2022-03-01T00%3A00%3A00.000Z&dateTo=2022-03-17T11%3A04%3A40.930Z`
 
 где:
 
@@ -33,38 +33,51 @@
 ```json
 {
   "ok": true,
-  "result": [
-    {
-      "type": "paymentout",
-      "name": "88 (2)",
-      "moment": "2022-03-09T21:00:00.000Z",
-      "expenseType": "Налоги и сборы"
-    },
-    {
-      "type": "paymentin",
-      "name": "117",
-      "moment": "2022-03-09T21:00:00.000Z",
-      "incomingNumber": "117",
-      "incomingDate": "2022-03-09T21:00:00.000Z"
-    },
-    {
-      "type": "retaildemand",
-      "name": "NV-rdm-02358",
-      "moment": "2022-03-03T10:09:00.000Z",
-      "taxSystem": "ЕНВД"
-    },
-    {
-      "type": "demand",
-      "name": "ИП-01928",
-      "moment": "2022-02-13T07:14:00.000Z",
-      "taxSystem": "УСН [ОПТ ЮЛ]"
-    }
-  ]
+  "result": {
+    "items": [
+      {
+        "type": "paymentout",
+        "name": "88 (2)",
+        "moment": "2022-03-09T21:00:00.000Z",
+        "expenseType": "Налоги и сборы"
+      },
+      {
+        "type": "paymentin",
+        "name": "117",
+        "moment": "2022-03-09T21:00:00.000Z",
+        "incomingNumber": "117",
+        "incomingDate": "2022-03-09T21:00:00.000Z"
+      },
+      {
+        "type": "retaildemand",
+        "name": "NV-rdm-02358",
+        "moment": "2022-03-03T10:09:00.000Z",
+        "taxSystem": "ЕНВД"
+      },
+      {
+        "type": "demand",
+        "name": "ИП-01928",
+        "moment": "2022-02-13T07:14:00.000Z",
+        "taxSystem": "УСН [ОПТ ЮЛ]"
+      }
+    ],
+    "nextQueryString": "dateFrom=2022-01-31T19%3A00%3A00.000Z&dateTo=2022-02-27T19%3A00%3A00.000Z&continueFromEntity=paymentout&continueFromDate=2022-02-27T06%3A23%3A00.000Z"
+  }
 }
 ```
 
-- Поле `ok` - `true`
-- Поле `result` содержит массив с объектами
+- Поле `ok` - `true` если запрос выполнен успешно, иначе `false`
+
+- Поле `result.items` - содержит массив с объектами
+
+- Поле `result.nextQueryString` - (опционально) содержит строку запроса url для получения
+  оставщихся данных которые не удалось получить за время выделенное на ожидание
+  запроса (30 сек).
+
+Если заполнено поле `result.nextQueryString`, то для получения оставщихся данных
+нужно повторить запрос по url вида `https://{endpoint}?{result.nextQueryString}`.
+
+Нужно продолжать получать данные до тех пор, пока в ответе содержится поле `nextQueryString`.
 
 **Возможные варианты объектов:**
 
