@@ -1,7 +1,9 @@
 import { getInstance } from './moysklad/instance'
-import { fromAsyncGenerator, compact } from '@wmakeev/highland-tools'
+import { fromAsyncGenerator } from '@wmakeev/highland-tools'
 import { Instance, parseTimeString } from 'moysklad'
 import _H from 'highland'
+
+const DEMAND_TAX_SYSTEM_ATTR_ID = '83a2644f-50e2-11eb-0a80-05ec0025b107'
 
 async function* getEntities(
   ms: Instance,
@@ -65,56 +67,57 @@ export async function getDocumentsInfo(
 
   const paymentIn$ = fromAsyncGenerator(() =>
     getEntities(ms, 'paymentin', dateFrom, dateTo)
-  )
-    .map(entity => {
-      const incomingNumber = entity.incomingNumber
-
-      return incomingNumber
-        ? {
-            ...getCommonFields(entity),
-            incomingNumber,
-            incomingDate: entity.incomingDate
-              ? parseTimeString(entity.incomingDate)
-              : undefined
-          }
+  ).map(entity => {
+    return {
+      ...getCommonFields(entity),
+      incomingNumber: entity.incomingNumber ?? null,
+      incomingDate: entity.incomingDate
+        ? parseTimeString(entity.incomingDate)
         : null
-    })
-    .through(compact)
+    }
+  })
 
   const paymentOut$ = fromAsyncGenerator(() =>
     getEntities(ms, 'paymentout', dateFrom, dateTo)
-  )
-    .map(entity => {
-      const expenseType = getExpenseItem(entity.expenseItem?.meta.href)?.name
+  ).map(entity => {
+    const expenseType =
+      getExpenseItem(entity.expenseItem?.meta.href)?.name ?? null
 
-      return expenseType
-        ? {
-            ...getCommonFields(entity),
-            expenseType
-          }
-        : null
-    })
-    .through(compact)
+    return {
+      ...getCommonFields(entity),
+      expenseType
+    }
+  })
 
   const retailDemand$ = fromAsyncGenerator(() =>
     getEntities(ms, 'retaildemand', dateFrom, dateTo)
-  )
-    .map(entity => {
-      const retailStore = getRetailStore(entity.retailStore.meta.href)
+  ).map(entity => {
+    const retailStore = getRetailStore(entity.retailStore.meta.href)
 
-      const taxSystem = taxSystemNames[retailStore.defaultTaxSystem]
+    const taxSystem = taxSystemNames[retailStore.defaultTaxSystem] ?? null
 
-      return taxSystem
-        ? {
-            ...getCommonFields(entity),
-            taxSystem
-          }
-        : null
-    })
-    .through(compact)
+    return {
+      ...getCommonFields(entity),
+      taxSystem
+    }
+  })
+
+  const demand$ = fromAsyncGenerator(() =>
+    getEntities(ms, 'demand', dateFrom, dateTo)
+  ).map(entity => {
+    const taxSystem =
+      entity.attributes?.find(
+        (attr: any) => attr.id === DEMAND_TAX_SYSTEM_ATTR_ID
+      )?.value.name ?? null
+
+    return {
+      ...getCommonFields(entity),
+      taxSystem
+    }
+  })
 
   // @ts-expect-error merge
-  const result = await _H([paymentIn$, paymentOut$, retailDemand$])
+  const result = await _H([paymentIn$, paymentOut$, retailDemand$, demand$])
     .merge()
     .collect()
     .toPromise(Promise)
