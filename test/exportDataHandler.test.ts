@@ -54,7 +54,7 @@ test('exportDataHandler #2', async t => {
       dateFrom: new Date(2022, 2, 17).toJSON(),
       dateTo: new Date(2022, 2, 19).toJSON(),
       continueFromEntity: 'demand',
-      continueFromDate: new Date(2022, 2, 16, 15, 0, 0).toJSON()
+      continueFromDate: new Date(2022, 2, 17, 15, 0, 0).toJSON()
     }
   }
 
