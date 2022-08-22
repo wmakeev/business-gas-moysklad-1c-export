@@ -28,6 +28,18 @@ async function* getEntities(
   lastAbortedEntity?: EntityTypes,
   lastAbortedOnDate?: Date
 ) {
+  if (dateFrom.getTime() > dateTo.getTime()) {
+    throw new Error(
+      'Дата начала периода должна быть меньше даты окончания периода'
+    )
+  }
+
+  if (lastAbortedOnDate && dateFrom.getTime() > lastAbortedOnDate.getTime()) {
+    throw new Error(
+      'Последняя дата предыдущего отчета должна быть больше даты начала периода'
+    )
+  }
+
   const lastAbortedEntityIndex = lastAbortedEntity
     ? ENTITY_TYPES.indexOf(lastAbortedEntity)
     : 0
@@ -49,8 +61,9 @@ async function* getEntities(
           $lte: dateTo
         }
       },
+      expand: entityType === 'paymentin' ? 'operations' : undefined,
       order: 'moment,asc',
-      limit: 250
+      limit: 100
     })
 
     while (nextHref) {
@@ -129,14 +142,30 @@ export async function getDocumentsInfo(params: GetDocumentsInfoParams) {
   const getRetailStore = (href: string) =>
     retailStores.find((it: any) => it.meta.href === href)
 
+  const getDemandTaxSystem = (demand: any) => {
+    const taxSystem: string | null =
+      demand.attributes?.find(
+        (attr: any) => attr.id === DEMAND_TAX_SYSTEM_ATTR_ID
+      )?.value.name ?? null
+
+    return taxSystem
+  }
+
   const mapByType: Record<EntityTypes, (entity: any) => any> = {
     paymentin: entity => {
+      const linkedDemand = entity.operations?.find(
+        (o: any) => o.meta.type === 'demand'
+      )
+
+      const taxSystem = linkedDemand ? getDemandTaxSystem(linkedDemand) : null
+
       return {
         ...getCommonFields(entity),
         incomingNumber: entity.incomingNumber ?? null,
         incomingDate: entity.incomingDate
           ? parseTimeString(entity.incomingDate)
-          : null
+          : null,
+        taxSystem
       }
     },
 
@@ -162,10 +191,7 @@ export async function getDocumentsInfo(params: GetDocumentsInfoParams) {
     },
 
     demand: entity => {
-      const taxSystem =
-        entity.attributes?.find(
-          (attr: any) => attr.id === DEMAND_TAX_SYSTEM_ATTR_ID
-        )?.value.name ?? null
+      const taxSystem = getDemandTaxSystem(entity)
 
       return {
         ...getCommonFields(entity),

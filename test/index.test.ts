@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { getDocumentsInfo } from '../src'
 
-const dateFrom = new Date(2022, 1, 1)
+const dateFrom = new Date(2022, 1, 28)
 const dateTo = new Date(2022, 1, 28, 23, 59, 0)
 
 const auth = {
